@@ -12,6 +12,7 @@ import torch
 import itertools
 from typing import List
 import math
+import cv2
 
 
 SSDBoxSizes = collections.namedtuple('SSDBoxSizes', ['min', 'max'])
@@ -224,3 +225,106 @@ def hard_negative_mining(loss, labels, neg_pos_ratio):
     _, orders = indexes.sort(dim=1)
     neg_mask = orders < num_neg
     return pos_mask | neg_mask
+
+
+def nms(box_scores, nms_method=None, score_threshold=None, iou_threshold=None,
+        sigma=0.5, top_k=-1, candidate_size=200):
+    if nms_method == "soft":
+        return soft_nms(box_scores, score_threshold, sigma, top_k)
+    else:
+        return hard_nms(box_scores, iou_threshold, top_k, candidate_size=candidate_size)
+
+
+def hard_nms(box_scores, iou_threshold, top_k=-1, candidate_size=200):
+    """
+
+    Args:
+        box_scores (N, 5): boxes in corner-form and probabilities.
+        iou_threshold: intersection over union threshold.
+        top_k: keep top_k results. If k <= 0, keep all the results.
+        candidate_size: only consider the candidates with the highest scores.
+    Returns:
+         picked: a list of indexes of the kept boxes
+    """
+    scores = box_scores[:, -1]
+    boxes = box_scores[:, :-1]
+    picked = []
+    _, indexes = scores.sort(descending=True)
+    indexes = indexes[:candidate_size]
+    while len(indexes) > 0:
+        current = indexes[0]
+        picked.append(current.item())
+        if 0 < top_k == len(picked) or len(indexes) == 1:
+            break
+        current_box = boxes[current, :]
+        indexes = indexes[1:]
+        rest_boxes = boxes[indexes, :]
+        iou = iou_of(
+            rest_boxes,
+            current_box.unsqueeze(0),
+        )
+        indexes = indexes[iou <= iou_threshold]
+
+    return box_scores[picked, :]
+
+
+def soft_nms(box_scores, score_threshold, sigma=0.5, top_k=-1):
+    """Soft NMS implementation.
+
+    References:
+        https://arxiv.org/abs/1704.04503
+        https://github.com/facebookresearch/Detectron/blob/master/detectron/utils/cython_nms.pyx
+
+    Args:
+        box_scores (N, 5): boxes in corner-form and probabilities.
+        score_threshold: boxes with scores less than value are not considered.
+        sigma: the parameter in score re-computation.
+            scores[i] = scores[i] * exp(-(iou_i)^2 / simga)
+        top_k: keep top_k results. If k <= 0, keep all the results.
+    Returns:
+         picked_box_scores (K, 5): results of NMS.
+    """
+    picked_box_scores = []
+    while box_scores.size(0) > 0:
+        max_score_index = torch.argmax(box_scores[:, 4])
+        cur_box_prob = torch.tensor(box_scores[max_score_index, :])
+        picked_box_scores.append(cur_box_prob)
+        if len(picked_box_scores) == top_k > 0 or box_scores.size(0) == 1:
+            break
+        cur_box = cur_box_prob[:-1]
+        box_scores[max_score_index, :] = box_scores[-1, :]
+        box_scores = box_scores[:-1, :]
+        ious = iou_of(cur_box.unsqueeze(0), box_scores[:, :-1])
+        box_scores[:, -1] = box_scores[:, -1] * torch.exp(-(ious * ious) / sigma)
+        box_scores = box_scores[box_scores[:, -1] > score_threshold, :]
+    if len(picked_box_scores) > 0:
+        return torch.stack(picked_box_scores)
+    else:
+        return torch.tensor([])
+
+
+def plot_one_box(x, img, color=None, label=None, is_show=False, line_thickness=None):
+    """
+    画框
+    :param x: 列表，框的坐标，格式为[xmin, ymin, xmax, ymax]
+    :param img: 图片
+    :param color: 颜色
+    :param label: 字体
+    :param is_show: 是否显示
+    :param line_thickness: 粗细
+    :return:
+    """
+    tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line thickness
+    color = color or [random.randint(0, 255) for _ in range(3)]
+    c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
+    cv2.rectangle(img, c1, c2, color, thickness=tl)
+    if label:
+        tf = max(tl - 1, 1)  # font thickness
+        t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
+        c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
+        cv2.rectangle(img, c1, c2, color, -1)  # filled
+        cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+
+    if is_show:
+        cv2.imshow("win", img)
+        cv2.waitKey(0)

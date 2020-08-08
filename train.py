@@ -145,9 +145,9 @@ def train(loader, net, criterion, optimizer, device, debug_steps=100, epoch=-1):
                 f"Average Regression Loss {avg_reg_loss:.4f}, " +
                 f"Average Classification Loss: {avg_clf_loss:.4f}"
             )
-            writer.add_scalar("train/Loss", avg_loss, i)
-            writer.add_scalar("train/Regression_Loss", avg_reg_loss, i)
-            writer.add_scalar("train/Classification_Loss", avg_clf_loss, i)
+            writer.add_scalar("train/Loss", avg_loss, (i+1)*epoch)
+            writer.add_scalar("train/Regression_Loss", avg_reg_loss, (i+1)*epoch)
+            writer.add_scalar("train/Classification_Loss", avg_clf_loss, (i+1)*epoch)
             running_loss = 0.0
             running_regression_loss = 0.0
             running_classification_loss = 0.0
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     # if not os.path.exists("/log/{}".format(args.net)):
     #     os.mkdir("/log/{}".format(args.net))
     writer = SummaryWriter("log/{}/{}".format(args.net,
-                            datetime.datetime.now().strftime('%Y-%m-%d %H：%M：%S').split('：')[0]))
+                            datetime.datetime.now().strftime('%Y_%m_%d_%H')))
 
     logging.info(args)
     create_net = lambda num: create_mobilenetv2_ssd_lite(num, width_mult=args.mb2_width_mult)
@@ -323,5 +323,5 @@ if __name__ == '__main__':
             model_path = os.path.join(args.checkpoint_folder, f"{args.net}-Epoch-{epoch}-Loss-{val_loss}.pth")
             net.save(model_path)
             logging.info(f"Saved model {model_path}")
-            map = get_map(model_path, label_file)
+            map = get_map(model_path, args.validation_dataset, label_file)
             writer.add_scalar("mAP", map, epoch)
