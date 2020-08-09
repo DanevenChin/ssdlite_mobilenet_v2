@@ -24,11 +24,11 @@
 
 - trainval.txt和test.txt保存图片名，如图
 
-![image-20200808162742174](C:\Users\DanevenChin\AppData\Roaming\Typora\typora-user-images\image-20200808162742174.png)
+![image-20200808162742174](doc\image-20200808162742174.png)
 
 - 如果训练非官方voc数据集，则需要手动生成labels.txt，其中保存数据集的类别，如图
 
-![image-20200808164320537](C:\Users\DanevenChin\AppData\Roaming\Typora\typora-user-images\image-20200808164320537.png)
+![image-20200808164320537](doc\image-20200808164320537.png)
 
 ## 默认设置
 
