@@ -83,5 +83,5 @@ python train.py \
 # 性能测试
 python eval.py \
 --dataset /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
---trained_model saved_model/mb2-ssd-lite-Epoch-30-Loss-2.0793707370758057.pth \
+--trained_model saved_model/mb2_ssd_lite/best.pth \
 --label_file saved_model/voc-model-labels.txt

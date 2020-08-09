@@ -4,7 +4,31 @@
 
 ### 1) voc格式
 
-只需要给出voc数据集的路径，且路径下的文件格式如下
+只需要给出voc数据集的路径，且路径下的文件格式如下：
+
+```
+├─JPEGImages
+├─Annotations
+├─ImageSets
+		└─Main
+			├─trainval.txt
+			└─test.txt
+└─labels.txt
+```
+
+文件说明：
+
+- JPEGImages保存图片
+
+- Annotations保存标注文件，文件格式为xml
+
+- trainval.txt和test.txt保存图片名，如图
+
+![image-20200808162742174](C:\Users\DanevenChin\AppData\Roaming\Typora\typora-user-images\image-20200808162742174.png)
+
+- 如果训练非官方voc数据集，则需要手动生成labels.txt，其中保存数据集的类别，如图
+
+![image-20200808164320537](C:\Users\DanevenChin\AppData\Roaming\Typora\typora-user-images\image-20200808164320537.png)
 
 ## 默认设置
 
