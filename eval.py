@@ -104,7 +104,7 @@ def compute_average_precision_per_class(num_true_cases, gt_boxes, difficult_case
         return measurements.compute_average_precision(precision, recall)
 
 
-def get_map(trained_model, dataset, label_file):
+def get_map(net_para, dataset, label_file):
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     eval_path = pathlib.Path("eval_results")
@@ -118,7 +118,7 @@ def get_map(trained_model, dataset, label_file):
     net = create_mobilenetv2_ssd_lite(len(class_names), width_mult=1.0, is_test=True)
 
     timer.start("Load Model")
-    net.load(trained_model)
+    net.load_weight(net_para)
     net = net.to(DEVICE)
     predictor = create_mobilenetv2_ssd_lite_predictor(net, nms_method="hard", device=DEVICE)
 
@@ -171,8 +171,6 @@ def get_map(trained_model, dataset, label_file):
 
 def main():
     parser = argparse.ArgumentParser(description="SSD Evaluation on VOC Dataset.")
-    parser.add_argument('--net', default="vgg16-ssd",
-                        help="The network architecture, it should be of mb1-ssd, mb1-ssd-lite, mb2-ssd-lite or vgg16-ssd.")
     parser.add_argument("--trained_model", type=str)
 
     parser.add_argument("--dataset_type", default="voc", type=str,
@@ -197,43 +195,16 @@ def main():
 
     if args.dataset_type == "voc":
         dataset = VOCDataset(args.dataset, is_test=True)
-    elif args.dataset_type == 'open_images':
-        dataset = OpenImagesDataset(args.dataset, dataset_type="test")
 
     true_case_stat, all_gb_boxes, all_difficult_cases = group_annotation_by_class(dataset)
-    if args.net == 'vgg16-ssd':
-        net = create_vgg_ssd(len(class_names), is_test=True)
-    elif args.net == 'mb1-ssd':
-        net = create_mobilenetv1_ssd(len(class_names), is_test=True)
-    elif args.net == 'mb1-ssd-lite':
-        net = create_mobilenetv1_ssd_lite(len(class_names), is_test=True)
-    elif args.net == 'sq-ssd-lite':
-        net = create_squeezenet_ssd_lite(len(class_names), is_test=True)
-    elif args.net == 'mb2-ssd-lite':
-        net = create_mobilenetv2_ssd_lite(len(class_names), width_mult=args.mb2_width_mult, is_test=True)
-    else:
-        logging.fatal("The net type is wrong. It should be one of vgg16-ssd, mb1-ssd and mb1-ssd-lite.")
-        parser.print_help(sys.stderr)
-        sys.exit(1)
+
+    net = create_mobilenetv2_ssd_lite(len(class_names), width_mult=args.mb2_width_mult, is_test=True)
 
     timer.start("Load Model")
     net.load(args.trained_model)
     net = net.to(DEVICE)
     print(f'It took {timer.end("Load Model")} seconds to load the model.')
-    if args.net == 'vgg16-ssd':
-        predictor = create_vgg_ssd_predictor(net, nms_method=args.nms_method, device=DEVICE)
-    elif args.net == 'mb1-ssd':
-        predictor = create_mobilenetv1_ssd_predictor(net, nms_method=args.nms_method, device=DEVICE)
-    elif args.net == 'mb1-ssd-lite':
-        predictor = create_mobilenetv1_ssd_lite_predictor(net, nms_method=args.nms_method, device=DEVICE)
-    elif args.net == 'sq-ssd-lite':
-        predictor = create_squeezenet_ssd_lite_predictor(net,nms_method=args.nms_method, device=DEVICE)
-    elif args.net == 'mb2-ssd-lite':
-        predictor = create_mobilenetv2_ssd_lite_predictor(net, nms_method=args.nms_method, device=DEVICE)
-    else:
-        logging.fatal("The net type is wrong. It should be one of vgg16-ssd, mb1-ssd and mb1-ssd-lite.")
-        parser.print_help(sys.stderr)
-        sys.exit(1)
+    predictor = create_mobilenetv2_ssd_lite_predictor(net, nms_method=args.nms_method, device=DEVICE)
 
     results = []
     for i in range(len(dataset)):

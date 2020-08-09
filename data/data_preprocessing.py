@@ -22,16 +22,16 @@ class TrainAugmentation:
         self.mean = mean
         self.size = size
         self.augment = Compose([
-            ConvertFromInts(),
-            PhotometricDistort(),
-            Expand(self.mean),
-            RandomSampleCrop(),
-            RandomMirror(),
-            ToPercentCoords(),
-            Resize(self.size),
-            SubtractMeans(self.mean),
-            lambda img, boxes=None, labels=None: (img / std, boxes, labels),
-            ToTensor(),
+            ConvertFromInts(),  # 图片数据int转为float32
+            PhotometricDistort(),  # 随机亮度、随机对比度、随机饱和度、随机色彩、随机亮度噪声
+            Expand(self.mean),  # 随机图片扩展
+            RandomSampleCrop(),  # 随机裁剪
+            RandomMirror(),  # 随机镜像
+            ToPercentCoords(),  # 坐标归一化
+            Resize(self.size),  # 图片resize
+            SubtractMeans(self.mean),  # 图片减均值
+            lambda img, boxes=None, labels=None: (img / std, boxes, labels),  # 图片除以方差
+            ToTensor(),  # numpy -> tensor, hwc -> chw
         ])
 
     def __call__(self, img, boxes, labels):

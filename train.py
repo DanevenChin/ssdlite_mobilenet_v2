@@ -9,10 +9,11 @@
 """
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '2'
 import logging
 import sys
 import itertools
+import shutil
 
 import torch
 from torch.utils.data import DataLoader, ConcatDataset
@@ -42,8 +43,7 @@ parser.add_argument('--balance_data', action='store_true',
                     help="Balance training data by down-sampling more frequent labels.")
 
 
-parser.add_argument('--net', default="vgg16-ssd",
-                    help="The network architecture, it can be mb1-ssd, mb1-lite-ssd, mb2-ssd-lite or vgg16-ssd.")
+parser.add_argument('--net_name', default="ssdlite_mobilenet_v2_default", help="Model name.")
 parser.add_argument('--freeze_base_net', action='store_true',
                     help="Freeze base net layers.")
 parser.add_argument('--freeze_net', action='store_true',
@@ -145,9 +145,9 @@ def train(loader, net, criterion, optimizer, device, debug_steps=100, epoch=-1):
                 f"Average Regression Loss {avg_reg_loss:.4f}, " +
                 f"Average Classification Loss: {avg_clf_loss:.4f}"
             )
-            writer.add_scalar("train/Loss", avg_loss, (i+1)*epoch)
-            writer.add_scalar("train/Regression_Loss", avg_reg_loss, (i+1)*epoch)
-            writer.add_scalar("train/Classification_Loss", avg_clf_loss, (i+1)*epoch)
+            writer.add_scalar("train/Loss", avg_loss, epoch*len(loader)+i)
+            writer.add_scalar("train/Regression_Loss", avg_reg_loss, epoch*len(loader)+i)
+            writer.add_scalar("train/Classification_Loss", avg_clf_loss, epoch*len(loader)+i)
             running_loss = 0.0
             running_regression_loss = 0.0
             running_classification_loss = 0.0
@@ -177,13 +177,52 @@ def test(loader, net, criterion, device):
     return running_loss / num, running_regression_loss / num, running_classification_loss / num
 
 
+def load_model(net, optimizer, last_epoch, best_mAP):
+    timer.start("Load Model")
+    if args.resume:
+        logging.info(f"Resume from the model {args.resume}")
+        chkpt = torch.load(args.resume, map_location=DEVICE)
+        net.load_state_dict(chkpt['model'])
+        last_epoch = chkpt['epoch']
+        optimizer.load_state_dict(chkpt['optimizer'])
+        best_mAP = chkpt['best_mAP']
+        del chkpt
+    elif args.base_net:
+        logging.info(f"Init from base net {args.base_net}")
+        net.init_from_base_net(args.base_net)
+    elif args.pretrained_ssd:
+        logging.info(f"Init from pretrained ssd {args.pretrained_ssd}")
+        net.init_from_pretrained_ssd(args.pretrained_ssd)
+    logging.info(f'Took {timer.end("Load Model"):.2f} seconds to load the model.')
+
+    return net, optimizer, last_epoch, best_mAP
+
+
+def save_model(net, best_mAP, save_best=False):
+    if not os.path.exists(os.path.join(args.checkpoint_folder, args.net_name)):
+        os.mkdir(os.path.join(args.checkpoint_folder, args.net_name))
+    model_path = os.path.join(args.checkpoint_folder, args.net_name, f"last.pth")
+    if save_best:
+        net.save(model_path.replace("last", "best"))
+    chkpt = {'epoch': epoch,
+             'model': net.state_dict(),
+             'optimizer': optimizer.state_dict(),
+             'best_mAP': best_mAP
+             }
+    torch.save(chkpt, model_path)
+    logging.info(f"Saved model {model_path}")
+
+    del chkpt
+
+
 if __name__ == '__main__':
     timer = Timer()
 
-    # if not os.path.exists("/log/{}".format(args.net)):
-    #     os.mkdir("/log/{}".format(args.net))
-    writer = SummaryWriter("log/{}/{}".format(args.net,
-                            datetime.datetime.now().strftime('%Y_%m_%d_%H')))
+    if not os.path.exists("log/{}".format(args.net_name)):
+        os.mkdir("log/{}".format(args.net_name))
+    log_path = "log/{}/{}".format(args.net_name,
+                            datetime.datetime.now().strftime('%Y_%m_%d_%H'))
+    writer = SummaryWriter(log_path)
 
     logging.info(args)
     create_net = lambda num: create_mobilenetv2_ssd_lite(num, width_mult=args.mb2_width_mult)
@@ -227,10 +266,11 @@ if __name__ == '__main__':
     net = create_net(num_classes)
     min_loss = -10000.0
     last_epoch = -1
+    best_mAP = 0
 
     base_net_lr = args.base_net_lr if args.base_net_lr is not None else args.lr
     extra_layers_lr = args.extra_layers_lr if args.extra_layers_lr is not None else args.lr
-    if args.freeze_base_net:
+    if args.freeze_base_net:  # backbone的权重不更新
         logging.info("Freeze base net.")
         freeze_net_layers(net.base_net)
         params = itertools.chain(net.source_layer_add_ons.parameters(), net.extras.parameters(),
@@ -245,7 +285,7 @@ if __name__ == '__main__':
                 net.classification_headers.parameters()
             )}
         ]
-    elif args.freeze_net:
+    elif args.freeze_net:  # 只更新回归和分类分支的权重
         freeze_net_layers(net.base_net)
         freeze_net_layers(net.source_layer_add_ons)
         freeze_net_layers(net.extras)
@@ -264,24 +304,17 @@ if __name__ == '__main__':
             )}
         ]
 
-    timer.start("Load Model")
-    if args.resume:
-        logging.info(f"Resume from the model {args.resume}")
-        net.load(args.resume)
-    elif args.base_net:
-        logging.info(f"Init from base net {args.base_net}")
-        net.init_from_base_net(args.base_net)
-    elif args.pretrained_ssd:
-        logging.info(f"Init from pretrained ssd {args.pretrained_ssd}")
-        net.init_from_pretrained_ssd(args.pretrained_ssd)
-    logging.info(f'Took {timer.end("Load Model"):.2f} seconds to load the model.')
+    net.init()
+
+    optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum,
+                                weight_decay=args.weight_decay)
+
+    net, optimizer, last_epoch, best_mAP = load_model(net, optimizer, last_epoch, best_mAP)
 
     net.to(DEVICE)
 
     criterion = MultiboxLoss(config.priors, iou_threshold=0.5, neg_pos_ratio=3,
                              center_variance=0.1, size_variance=0.2, device=DEVICE)
-    optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum,
-                                weight_decay=args.weight_decay)
     logging.info(f"Learning rate: {args.lr}, Base net learning rate: {base_net_lr}, "
                  + f"Extra Layers learning rate: {extra_layers_lr}.")
 
@@ -300,8 +333,19 @@ if __name__ == '__main__':
 
     last_epoch += 1
     logging.info(f"Start training from epoch {last_epoch + 1}.")
-    for epoch in range(last_epoch + 1, args.num_epochs+1):
+    for epoch in range(last_epoch, args.num_epochs):
         scheduler.step()
+        lr = scheduler.get_lr()
+        if len(lr) == 1:
+            writer.add_scalar("learn_rate/pred_heads_lr", lr[0], epoch)
+        elif len(lr) == 2:
+            writer.add_scalar("learn_rate/ssd_lr", lr[0], epoch)
+            writer.add_scalar("learn_rate/pred_heads_lr", lr[1], epoch)
+        else:
+            writer.add_scalar("learn_rate/mob_lr", lr[0], epoch)
+            writer.add_scalar("learn_rate/ssd_lr", lr[1], epoch)
+            writer.add_scalar("learn_rate/pred_heads_lr", lr[2], epoch)
+
         train(train_loader, net, criterion, optimizer,
               device=DEVICE, debug_steps=args.debug_steps, epoch=epoch)
 
@@ -320,8 +364,15 @@ if __name__ == '__main__':
             writer.add_scalar("validation/Loss", val_loss, epoch)
             writer.add_scalar("validation/Regression_Loss", val_regression_loss, epoch)
             writer.add_scalar("validation/Classification_Loss", val_classification_loss, epoch)
-            model_path = os.path.join(args.checkpoint_folder, f"{args.net}-Epoch-{epoch}-Loss-{val_loss}.pth")
-            net.save(model_path)
-            logging.info(f"Saved model {model_path}")
-            map = get_map(model_path, args.validation_dataset, label_file)
+
+            map = get_map(net.state_dict(), args.validation_dataset, label_file)
             writer.add_scalar("mAP", map, epoch)
+
+            if map > best_mAP:
+                save_best = True
+                best_mAP = map
+            else:
+                save_best = False
+            save_model(net, best_mAP, save_best)
+
+

@@ -147,6 +147,9 @@ class SSD(nn.Module):
     def load(self, model):
         self.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
 
+    def load_weight(self, state_dict):
+        self.load_state_dict(state_dict)
+
     def save(self, model_path):
         torch.save(self.state_dict(), model_path)
 

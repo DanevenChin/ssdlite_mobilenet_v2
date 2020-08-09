@@ -17,8 +17,7 @@ import os
 
 class VOCDataset:
 
-    def __init__(self, root, transform=None, target_transform=None, is_test=False, keep_difficult=False,
-                 label_file=None):
+    def __init__(self, root, transform=None, target_transform=None, is_test=False, keep_difficult=False):
         """Dataset for VOC data.
         Args:
             root: the root of the VOC2007 or VOC2012 dataset, the directory contains the following sub-directories:
@@ -38,17 +37,10 @@ class VOCDataset:
         label_file_name = self.root / "labels.txt"
 
         if os.path.isfile(label_file_name):
-            class_string = ""
             with open(label_file_name, 'r') as infile:
-                for line in infile:
-                    class_string += line.rstrip()
-
-            # classes should be a comma separated list
-
-            classes = class_string.split(',')
+                classes = infile.read().splitlines()
             # prepend BACKGROUND as first class
             classes.insert(0, 'BACKGROUND')
-            classes = [elem.replace(" ", "") for elem in classes]
             self.class_names = tuple(classes)
             logging.info("VOC Labels read from file: " + str(self.class_names))
 

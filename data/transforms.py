@@ -405,11 +405,11 @@ class PhotometricDistort(object):
 
     def __call__(self, image, boxes, labels):
         im = image.copy()
-        im, boxes, labels = self.rand_brightness(im, boxes, labels)
-        if random.randint(2):
+        im, boxes, labels = self.rand_brightness(im, boxes, labels)  # 随机亮度
+        if random.randint(2):  # 随机对比度 -> 随机饱和度 -> 随机色彩
             distort = Compose(self.pd[:-1])
-        else:
+        else:  # 随机饱和度 -> 随机色彩 -> 随机对比度
             distort = Compose(self.pd[1:])
         im, boxes, labels = distort(im, boxes, labels)
-        return self.rand_light_noise(im, boxes, labels)
+        return self.rand_light_noise(im, boxes, labels)  # 随机亮度噪声
 

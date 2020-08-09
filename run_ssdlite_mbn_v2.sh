@@ -55,3 +55,33 @@ python eval.py \
 --dataset /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
 --trained_model saved_model/mb2-ssd-lite-Epoch-30-Loss-2.0793707370758057.pth \
 --label_file saved_model/voc-model-labels.txt
+
+----------- 0808代码优化，新的训练脚本如下 ----------------
+python train.py \
+--datasets /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
+--validation_dataset /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
+--net_name mb2_ssd_lite \
+--base_net models/mb2-imagenet-71_8.pth  \
+--scheduler cosine \
+--lr 0.01 \
+--t_max 100 \
+--validation_epochs 5 \
+--num_epochs 100
+
+# resume
+python train.py \
+--datasets /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
+--validation_dataset /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
+--net mb2-ssd-lite \
+--resume saved_model/mb2_ssd_lite/last.pth  \
+--scheduler cosine \
+--lr 0.01 \
+--t_max 100 \
+--validation_epochs 5 \
+--num_epochs 100
+
+# 性能测试
+python eval.py \
+--dataset /home/qindanfeng/work/deep_learning/datasets/vehicle_datasets \
+--trained_model saved_model/mb2-ssd-lite-Epoch-30-Loss-2.0793707370758057.pth \
+--label_file saved_model/voc-model-labels.txt
