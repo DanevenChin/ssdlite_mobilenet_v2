@@ -2,7 +2,6 @@
 """
 @author  : 秦丹峰
 @contact : daneven.jim@gmail.com
-@license : (C) Copyright, 广州海格星航信息科技有限公司
 @time    : 2020/8/4 23:55
 @file    : eval.py
 @desc    : 
@@ -256,7 +255,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     # trained_model = "saved_model/mb2-ssd-lite-Epoch-150-Loss-2.8759542611929088.pth"
     # label_file = "models/voc-model-labels.txt"
 
@@ -264,6 +263,7 @@ if __name__ == '__main__':
     # trained_model = "saved_model/mb2-ssd-lite-Epoch-30-Loss-2.0793707370758057.pth"  # 0.4719300149648732
     # trained_model = "saved_model/mb2-ssd-lite-Epoch-35-Loss-2.0251203179359436.pth"  # 0.4999871084292743
 
-    # label_file = "saved_model/voc-model-labels.txt"
-    # dataset = "/home/qindanfeng/work/deep_learning/datasets/vehicle_datasets"
-    # map = get_map(trained_model, dataset, label_file)
+    net_para = torch.load("saved_model/mb2_ssd_lite/best.pth")
+    label_file = "saved_model/voc-model-labels.txt"
+    dataset = "/home/qindanfeng/work/deep_learning/datasets/vehicle_datasets"
+    map = get_map(net_para, dataset, label_file)

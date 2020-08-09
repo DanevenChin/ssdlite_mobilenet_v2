@@ -2,7 +2,6 @@
 """
 @author  : 秦丹峰
 @contact : daneven.jim@gmail.com
-@license : (C) Copyright, 广州海格星航信息科技有限公司
 @time    : 2020/8/6 8:52
 @file    : output_big_img.py
 @desc    : 
